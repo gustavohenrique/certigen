@@ -1,0 +1,108 @@
+image: golang:1.21-alpine3.18
+
+definitions:
+  services:
+    docker:
+      memory: 2048
+    postgres:
+      image: postgres:16
+      environment:
+        POSTGRES_DB: "tax"
+        POSTGRES_USER: "admin"
+        POSTGRES_PASSWORD: "123456"
+      ports:
+        - 5432:5432
+  steps:
+    - step: &application-test
+        name: Executando testes da aplicação
+        script:
+          - apk add --update make bash build-base git postgresql-client curl
+          - curl https://uploader.codecov.io/latest/linux/codecov -o /bin/codecov
+          - chmod +x /bin/codecov
+          - make install
+          - go mod tidy
+          - make mocks
+          - make lint
+          - make ci
+        services:
+          - postgres
+        artifacts:
+          - "profile.cov"
+        environment:
+          - COVERALLS_TOKEN: $COVERALLS_REPO_TOKEN
+          - CODECOV_TOKEN: $CODECOV_TOKEN
+    - step: &build-image
+        name: Construindo imagem da aplicação
+        services:
+          - docker
+        artifacts:
+          - "*.tar"
+        script:
+          - docker build . --file Dockerfile --tag ${BITBUCKET_REPO_SLUG}
+          - docker save ${BITBUCKET_REPO_SLUG} --output "${BITBUCKET_REPO_SLUG}.tar"
+    - step: &lint-dockerfile
+        name: Executando verificação da construção da Imagem Docker
+        image: hadolint/hadolint:latest-alpine
+        script:
+          - hadolint Dockerfile
+    - step: &security-test
+        name: Executando teste de segurança
+        script:
+          - pipe: atlassian/git-secrets-scan:1.4.0
+    - step: &update-image-repository
+        name: Atualizando repositório de imagem da aplicação
+        image: amazon/aws-cli
+        services:
+          - docker
+        script:
+          - >-
+            case "${BITBUCKET_BRANCH}" in
+            "homol")
+              TAG_ENV_SHORT="hml"
+              TAG_ENV="homol"
+              ;;
+            "main")
+              TAG_ENV_SHORT="lts"
+              TAG_ENV="latest"
+              ;;
+            *)
+              TAG_ENV_SHORT="dev"
+              TAG_ENV="develop"
+              ;;
+            esac
+          - REPO_HOST="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+          - REPO_ADDRESS="${REPO_HOST}/${AWS_ECR_REPO}"
+          - VERSION_SHORT="${TAG_ENV_SHORT}-${BITBUCKET_BUILD_NUMBER}"
+          - VERSION="${TAG_ENV}"
+          - IMAGE="${REPO_HOST}/${AWS_ECR_REPO}"
+          - docker load --input "${BITBUCKET_REPO_SLUG}.tar"
+          - aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPO_HOST}
+          - docker tag "${BITBUCKET_REPO_SLUG}" "${IMAGE}:${VERSION}"
+          - docker tag "${BITBUCKET_REPO_SLUG}" "${IMAGE}:${VERSION_SHORT}"
+          - docker push "${IMAGE}:${VERSION}"
+          - docker push "${IMAGE}:${VERSION_SHORT}"
+pipelines:
+  default:
+    - step: *application-test
+  branches:
+    developer:
+      - parallel:
+        - step: *application-test
+        - step: *lint-dockerfile
+        - step: *security-test
+      - step: *build-image
+      - step: *update-image-repository
+    homol:
+      - parallel:
+        - step: *application-test
+        - step: *lint-dockerfile
+        - step: *security-test
+      - step: *build-image
+      - step: *update-image-repository
+    main:
+      - parallel:
+        - step: *application-test
+        - step: *lint-dockerfile
+        - step: *security-test
+      - step: *build-image
+      - step: *update-image-repository

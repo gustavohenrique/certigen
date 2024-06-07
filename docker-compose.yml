@@ -1,0 +1,23 @@
+version: '3.8'
+
+networks:
+  agilize:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: certigen_postgres
+    restart: always
+    env_file:
+      - .envs/linux
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./resources/data/postgres/schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - agilize
+
+volumes:
+  postgres_data:

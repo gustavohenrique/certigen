@@ -1,0 +1,83 @@
+version: '3'
+
+tasks:
+  start:
+    silent: true
+    dotenv: ['.envs/{{OS}}']
+    cmds:
+      - go run cmd/webapp/main.go
+
+  build:
+    silent: true
+    cmds:
+      - |
+        set -e
+        export COMMIT_HASH=$(git rev-parse --short HEAD) && \
+        export BUILD_DATE=`date +"%Y-%m-%d_%H:%M:%S"` && \
+        export APP_NAME=`go list -m` && \
+        go build -installsuffix "static" \
+          -ldflags "-X certigen/src/shared/logger.COMMIT_HASH=$COMMIT_HASH -X certigen/src/shared/logger.BUILD_DATE=$BUILD_DATE -X certigen/src/shared/logger.APP_NAME=$APP_NAME -s -w" \
+          -o `go list -m` \
+          cmd/webapp/main.go
+
+  tests:
+    aliases: [test]
+    silent: true
+    dotenv: ['.envs/testing']
+    vars:
+      COVERAGE_FILE: profile.cov
+      GOFLAGS: '-count=1'
+    cmds:
+      - |
+        export SQLITE_SCHEMA="$PWD/$SQLITE_SCHEMA" && \
+        go test -v -failfast -p 1 -race -covermode atomic -coverprofile={{.COVERAGE_FILE}} `go list ./... | grep -v -E -f .testignore` | sed ''/PASS/s//$(printf "\033[32mPASS\033[0m")/'' | sed ''/FAIL/s//$(printf "\033[31mFAIL\033[0m")/''
+
+  unittest:
+    aliases: [unit]
+    silent: true
+    dotenv: ['.envs/testing']
+    cmds:
+      - |
+        export SQLITE_SCHEMA="$PWD/$SQLITE_SCHEMA" && \
+        go test -v -race ./... -run {{.CLI_ARGS}}
+
+  lint:
+    cmds:
+      - goimports -w cmd src
+      - golangci-lint run -c golangci.yml
+
+  mocks:
+    silent: true
+    vars:
+      DEST: mocks
+    sources:
+      - src/domain/ports/*.go
+      - src/drivers/datastores/*.go
+      - src/drivers/datastores/db/*.go
+    cmds:
+      - rm -rf {{.DEST}} 2>/dev/null || echo
+      - mkdir {{.DEST}}
+      - for: sources
+        cmd: |
+          set -e
+          for i in `/bin/ls -1 {{.ITEM}}`; do
+              out=`basename $i | sed 's,_interface,,g'`
+              if [ "${out}" == "ports.go" ]; then
+                  out=`basename $(dirname ${i})`
+                  out="${out}_ports.go"
+              fi
+              mockgen -source ${i} -destination {{.DEST}}/mock_${out} -package {{.DEST}}
+          done
+
+  ci:
+    silent: true
+    dotenv: ['.envs/testing']
+    vars:
+      COVERAGE_FILE: profile.cov
+      FILTERED_COVERAGE_FILE: coverage.cov
+    cmds:
+      - |
+        export POSTGRES_SCHEMA="$PWD/$POSTGRES_SCHEMA" && \
+        export POSTGRES_URL="postgres://admin:123456@127.0.0.1:5432/tax?sslmode=disable" && \
+        go test -v -failfast -p 1 -race -covermode atomic -coverprofile={{.COVERAGE_FILE}} `go list ./... | grep -v -E -f .testignore`
+      - grep -v -E -f .covignore {{.COVERAGE_FILE}} > {{.FILTERED_COVERAGE_FILE}}

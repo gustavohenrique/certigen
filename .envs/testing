@@ -1,0 +1,2 @@
+SQLITE_SCHEMA=resources/data/sqlite/schema.sql
+SQLITE_ADDRESS=":memory:"
