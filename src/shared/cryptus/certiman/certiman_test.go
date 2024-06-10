@@ -15,17 +15,17 @@ import (
 	"certigen/src/shared/testify/assert"
 )
 
-var tmpDir = os.TempDir()
+var tmpDir = "/tmp"
 
 func TestCertiman(t *testing.T) {
 	config := certiman.NewConfig()
-	expiresAt := time.Now().Add(time.Hour*time.Duration(0) +
+	expiresAt := time.Now().Add(time.Hour*time.Duration(48) +
 		time.Minute*time.Duration(5) +
 		time.Second*time.Duration(3))
 	config.SetExpirationDate(expiresAt)
-	config.SetCountry("br")
-	config.SetLocality("rio de janeiro")
-	config.SetOrganization("ravoni")
+	config.AddCountry("br")
+	config.AddLocality("rio de janeiro")
+	config.AddOrganization("ravoni")
 	config.SetCommonName("ca")
 	config.SetIssuerName("Ravoni Labs")
 	config.SetHosts([]string{"localhost"})
@@ -42,16 +42,16 @@ func TestCertiman(t *testing.T) {
 
 	caTLS, err := manager.Parse(rootCA)
 	assert.Nil(t, err, "Parse")
-	assert.Equal(t, config.Organization(), caTLS.X509Certificate.Subject.Organization[0])
-	assert.Equal(t, config.Country(), caTLS.X509Certificate.Subject.Country[0])
-	assert.Equal(t, config.Locality(), caTLS.X509Certificate.Subject.Locality[0])
+	assert.Equal(t, config.Organizations()[0], caTLS.X509Certificate.Subject.Organization[0])
+	assert.Equal(t, config.Countries()[0], caTLS.X509Certificate.Subject.Country[0])
+	assert.Equal(t, config.Localities()[0], caTLS.X509Certificate.Subject.Locality[0])
 	assert.Equal(t, config.CommonName(), caTLS.X509Certificate.Subject.CommonName)
 	assert.True(t, caTLS.X509Certificate.IsCA)
 
 	// intermediate CA
 	config.SetID("my-inter-uuid")
 	config.SetCommonName("Intermediate CA")
-	config.SetOrganizationalUnit("some-uuid")
+	config.SetOrganizationalUnits([]string{"some-uuid"})
 	config.SetIssuerName("it should be ignored")
 	intermediateCA, err := manager.CreateIntermediateCA(rootCA)
 	assert.Nil(t, err, "CreateIntermediate")
@@ -65,14 +65,15 @@ func TestCertiman(t *testing.T) {
 	assert.Nil(t, err, "Parse intermediate")
 	assert.Equal(t, config.CommonName(), intermediateTLS.X509Certificate.Subject.CommonName)
 	assert.Equal(t, caTLS.X509Certificate.Subject.CommonName, intermediateTLS.X509Certificate.Issuer.CommonName)
-	assert.Equal(t, config.OrganizationalUnit(), intermediateTLS.X509Certificate.Subject.OrganizationalUnit[0])
+	assert.Equal(t, config.OrganizationalUnits()[0], intermediateTLS.X509Certificate.Subject.OrganizationalUnit[0])
 	assert.True(t, intermediateTLS.X509Certificate.IsCA)
 
 	// server
 	config.SetID("my-server-uuid")
 	config.SetCommonName("payment-api")
-	config.SetOrganization("Finance")
-	config.SetOrganizationalUnit("TeamX")
+	config.SetOrganizations([]string{"Finance"})
+	config.SetOrganizationalUnits([]string{"TeamX"})
+	config.SetOcspURL("http://localhost:8002/ocsp")
 	serverCert, err := manager.CreateServerCert(intermediateCA)
 	assert.Nil(t, err, "CreateServerCert")
 	save(tmpDir, "server.pem", serverCert.PublicKey)
@@ -82,16 +83,27 @@ func TestCertiman(t *testing.T) {
 	assert.Nil(t, err, "Parse server cert")
 	assert.Equal(t, config.CommonName(), serverTLS.X509Certificate.Subject.CommonName)
 	assert.Equal(t, intermediateTLS.X509Certificate.Subject.CommonName, serverTLS.X509Certificate.Issuer.CommonName)
-	assert.Equal(t, config.Organization(), serverTLS.X509Certificate.Subject.Organization[0])
-	assert.Equal(t, config.OrganizationalUnit(), serverTLS.X509Certificate.Subject.OrganizationalUnit[0])
+	assert.Equal(t, config.Organizations()[0], serverTLS.X509Certificate.Subject.Organization[0])
+	assert.Equal(t, config.OrganizationalUnits()[0], serverTLS.X509Certificate.Subject.OrganizationalUnit[0])
 	assert.False(t, serverTLS.X509Certificate.IsCA)
+
+	// oscp
+	config.SetID("ocsp-server")
+	config.SetCommonName("ocsp")
+	config.SetOrganizations([]string{"Finance"})
+	config.SetOrganizationalUnits([]string{"TeamX"})
+	ocspCert, err := manager.CreateServerCert(intermediateCA)
+	assert.Nil(t, err, "CreateOCSP")
+	save(tmpDir, "ocsp.pem", ocspCert.PublicKey)
+	save(tmpDir, "ocsp.key", ocspCert.PrivateKey)
 
 	// client
 	config.SetID("my-client-uuid")
 	config.SetCommonName("bff")
-	config.SetHosts([]string{"payment-api"})
-	config.SetOrganization("Finance")
-	config.SetOrganizationalUnit("TeamX")
+	config.SetPermittedUriDomains([]string{"payment-api"})
+	config.SetOrganizations([]string{"Finance"})
+	config.SetOrganizationalUnits([]string{"TeamX"})
+	config.SetOcspURL("http://localhost:8002/ocsp")
 	clientCert, err := manager.CreateClientCert(intermediateCA)
 	assert.Nil(t, err, "CreateClientCert")
 	save(tmpDir, "client.pem", clientCert.PublicKey)
@@ -101,8 +113,9 @@ func TestCertiman(t *testing.T) {
 	assert.Nil(t, err, "Parse client cert")
 	assert.Equal(t, config.CommonName(), clientTLS.X509Certificate.Subject.CommonName)
 	assert.Equal(t, intermediateTLS.X509Certificate.Subject.CommonName, clientTLS.X509Certificate.Issuer.CommonName)
-	assert.Equal(t, config.Organization(), clientTLS.X509Certificate.Subject.Organization[0])
-	assert.Equal(t, config.OrganizationalUnit(), clientTLS.X509Certificate.Subject.OrganizationalUnit[0])
+	assert.Equal(t, config.PermittedUriDomains()[0], clientTLS.X509Certificate.PermittedURIDomains[0])
+	assert.Equal(t, config.Organizations()[0], clientTLS.X509Certificate.Subject.Organization[0])
+	assert.Equal(t, config.OrganizationalUnits()[0], clientTLS.X509Certificate.Subject.OrganizationalUnit[0])
 	assert.False(t, clientTLS.X509Certificate.IsCA)
 
 	roots := x509.NewCertPool()
@@ -156,14 +169,14 @@ func TestCertiman(t *testing.T) {
 		t.Errorf("failed to listen: %s", err)
 	}
 	go func() {
-		defer ln.Close()
+		// defer ln.Close()
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
 				t.Errorf("failed to accept connection: %s", err)
 				continue
 			}
-			defer conn.Close()
+			// defer conn.Close()
 			conn.Write([]byte("Hello!"))
 		}
 	}()

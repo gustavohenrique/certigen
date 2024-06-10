@@ -40,6 +40,9 @@ func (store *SqliteStore) Ping() error {
 	if store.connection != nil {
 		return store.connection.Ping()
 	}
+	if err := store.Connect(); err != nil {
+		return err
+	}
 	return store.connection.Ping()
 }
 

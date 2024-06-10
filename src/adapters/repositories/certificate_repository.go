@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"math/big"
 
 	"certigen/src/adapters/converters"
 	"certigen/src/adapters/dto"
@@ -38,17 +39,24 @@ func (r certificateRepository) ReadOneByID(ctx context.Context, id string) (mode
 	return r.converter.FromTableToModel(item), err
 }
 
-func (r certificateRepository) Update(ctx context.Context, item models.Certificate) (models.Certificate, error) {
+func (r certificateRepository) ReadOneBySerial(ctx context.Context, serial big.Int) (models.Certificate, error) {
+	var item dto.PisTable
+	q := "SELECT id, name FROM examples WHERE id=$1 LIMIT 1"
+	err := r.store.WithContext(ctx).QueryOne(q, &item, serial)
+	return r.converter.FromTableToModel(item), err
+}
+
+func (r certificateRepository) Revoke(ctx context.Context, item models.Certificate) error {
 	q := "UPDATE examples SET name=$2 WHERE id=$1"
 	err := r.store.WithContext(ctx).Exec(
 		q,
 		item.ID,
 	)
-	return item, err
+	return err
 }
 
-func (r certificateRepository) Delete(ctx context.Context, item models.Certificate) (models.Certificate, error) {
+func (r certificateRepository) Delete(ctx context.Context, item models.Certificate) error {
 	q := "DELETE FROM examples WHERE id=$1 LIMIT 1"
 	err := r.store.WithContext(ctx).Exec(q, item.ID)
-	return item, err
+	return err
 }

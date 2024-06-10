@@ -1,10 +1,13 @@
 package certiman
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -124,8 +127,30 @@ func (s *certificateManager) createSignedCertificate(cert *x509.Certificate, par
 	return certificate, err
 }
 
+func (s *certificateManager) configureASN1(cert *x509.Certificate, pub crypto.PublicKey) (*x509.Certificate, error) {
+	spkiASN1, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return cert, err
+	}
+	var spki struct {
+		Algorithm        pkix.AlgorithmIdentifier
+		SubjectPublicKey asn1.BitString
+	}
+	_, err = asn1.Unmarshal(spkiASN1, &spki)
+	if err != nil {
+		return cert, err
+	}
+	skid := sha1.Sum(spki.SubjectPublicKey.Bytes)
+	cert.SubjectKeyId = skid[:]
+	return cert, nil
+}
+
 func (s *certificateManager) buildPEM(template, parent *x509.Certificate, priv *rsa.PrivateKey, keyPair RsaKeyPair) (Certificate, error) {
 	var result Certificate
+	template, err := s.configureASN1(template, keyPair.PublicKey)
+	if err != nil {
+		return result, err
+	}
 	pubDER, err := x509.CreateCertificate(rand.Reader, template, parent, keyPair.PublicKey, priv)
 	if err != nil {
 		return result, fmt.Errorf("cannot create certificate: %s", err)
@@ -161,19 +186,20 @@ func (s *certificateManager) generateRsaKeyPair(config *Config) (RsaKeyPair, err
 }
 
 func (s *certificateManager) generateX509Template(config *Config) *x509.Certificate {
+	serial := config.SerialNumber()
 	cert := &x509.Certificate{
-		SerialNumber: s.randomSerialNumber(),
+		SerialNumber: &serial,
 		Issuer: pkix.Name{
 			CommonName: config.IssuerName(),
 		},
-		PermittedURIDomains: config.Hosts(),
+		PermittedURIDomains: config.PermittedUriDomains(),
 		Subject: pkix.Name{
 			SerialNumber:       config.ID(),
 			CommonName:         config.CommonName(),
-			Organization:       []string{config.Organization()},
-			Country:            []string{config.Country()},
-			Locality:           []string{config.Locality()},
-			OrganizationalUnit: []string{config.OrganizationalUnit()},
+			Organization:       config.Organizations(),
+			Country:            config.Countries(),
+			Locality:           config.Localities(),
+			OrganizationalUnit: config.OrganizationalUnits(),
 		},
 		NotBefore:          time.Now(),
 		NotAfter:           config.ExpiresAt(),
@@ -229,10 +255,13 @@ func (s *certificateManager) generateX509Template(config *Config) *x509.Certific
 	return cert
 }
 
-func (s *certificateManager) randomSerialNumber() *big.Int {
+func RandomSerialNumber() big.Int {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
-	return serialNumber
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return *big.NewInt(0)
+	}
+	return *serialNumber
 }
 
 func (s *certificateManager) generateKey(size int) (*rsa.PrivateKey, error) {

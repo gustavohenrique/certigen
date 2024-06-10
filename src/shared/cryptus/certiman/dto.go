@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"math/big"
 	"strings"
 	"time"
 )
@@ -34,21 +35,23 @@ func (s *RsaKeyPair) PrivateKeyPEM() string {
 }
 
 type Config struct {
-	id string
-	expiration         time.Time
-	isCa               bool
-	isIntermediateCa   bool
-	hosts              []string
-	ocspURL            string
-	organization       string
-	organizationalUnit string
-	country            string
-	locality           string
-	hasExtKeyServer    bool
-	hasExtKeyClient    bool
-	keySize            int
-	commonName         string
-	issuerName         string
+	serialNumber        big.Int
+	id                  string
+	expiration          time.Time
+	isCa                bool
+	isIntermediateCa    bool
+	hosts               []string
+	permittedUriDomains               []string
+	ocspURL             string
+	organizations       []string
+	organizationalUnits []string
+	countries           []string
+	localities          []string
+	hasExtKeyServer     bool
+	hasExtKeyClient     bool
+	keySize             int
+	commonName          string
+	issuerName          string
 }
 
 func NewConfig() *Config {
@@ -61,6 +64,17 @@ func (c *Config) SetID(n string) {
 
 func (c *Config) ID() string {
 	return c.id
+}
+
+func (c *Config) SetSerialNumber(n big.Int) {
+	c.serialNumber = n
+}
+
+func (c *Config) SerialNumber() big.Int {
+	if c.serialNumber.Cmp(big.NewInt(0)) == 0 {
+		return RandomSerialNumber()
+	}
+	return c.serialNumber
 }
 
 func (c *Config) SetCommonName(n string) {
@@ -126,58 +140,86 @@ func (c *Config) ExpiresAt() time.Time {
 	return c.expiration
 }
 
-func (c *Config) SetOrganization(organization string) {
+func (c *Config) SetOrganizations(organizations []string) {
+	c.organizations = organizations
+}
+
+func (c *Config) AddOrganization(organization string) {
 	organization = strings.TrimSpace(organization)
 	if len(organization) == 0 {
-		c.organization = "Unknown Org"
+		organization = "Unknown Org"
 	}
-	c.organization = organization
+	c.organizations = append(c.organizations, organization)
 }
 
-func (c *Config) Organization() string {
-	return c.organization
+func (c *Config) Organizations() []string {
+	return c.organizations
 }
 
-func (c *Config) SetOrganizationalUnit(ou string) {
+func (c *Config) SetOrganizationalUnits(units []string) {
+	c.organizationalUnits = units
+}
+
+func (c *Config) AddOrganizationalUnit(ou string) {
 	ou = strings.TrimSpace(ou)
-	c.organizationalUnit = ou
+	c.organizationalUnits = append(c.organizationalUnits, ou)
 }
 
-func (c *Config) OrganizationalUnit() string {
-	return c.organizationalUnit
+func (c *Config) OrganizationalUnits() []string {
+	return c.organizationalUnits
 }
 
-func (c *Config) SetCountry(country string) {
+func (c *Config) SetCountries(countries []string) {
+	c.countries = countries
+}
+
+func (c *Config) AddCountry(country string) {
 	country = strings.ToUpper(strings.TrimSpace(country))
 	if len(country) != 2 {
-		c.country = "??"
+		country = "Brazil"
 	}
-	c.country = country
+	c.countries = append(c.countries, country)
 }
 
-func (c *Config) Country() string {
-	return c.country
+func (c *Config) Countries() []string {
+	return c.countries
 }
 
-func (c *Config) SetLocality(locality string) {
+func (c *Config) SetLocalities(locals []string) {
+	c.localities = locals
+}
+
+func (c *Config) AddLocality(locality string) {
 	locality = strings.TrimSpace(locality)
-	c.locality = locality
+	c.localities = append(c.localities, locality)
 }
 
-func (c *Config) Locality() string {
-	return c.locality
+func (c *Config) Localities() []string {
+	return c.localities
 }
 
 func (c *Config) SetHosts(hosts []string) {
-	var trim []string
-	for _, h := range hosts {
-		trim = append(trim, strings.TrimSpace(h))
-	}
-	c.hosts = trim
+	c.hosts = hosts
+}
+
+func (c *Config) AddHost(host string) {
+	c.hosts = append(c.hosts, strings.TrimSpace(host))
 }
 
 func (c *Config) Hosts() []string {
 	return c.hosts
+}
+
+func (c *Config) SetPermittedUriDomains(permittedUriDomains []string) {
+	c.permittedUriDomains = permittedUriDomains
+}
+
+func (c *Config) AddPermittedUriDomain(uri string) {
+	c.permittedUriDomains = append(c.permittedUriDomains, strings.TrimSpace(uri))
+}
+
+func (c *Config) PermittedUriDomains() []string {
+	return c.permittedUriDomains
 }
 
 func (c *Config) SetOcspURL(url string) {
