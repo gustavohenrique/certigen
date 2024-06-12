@@ -1,7 +1,7 @@
 package certiman
 
 type Certiman interface {
-	With(config *Config) Certiman
+	With(config *CertificateTemplate) Certiman
 	CreateRootCA() (Certificate, error)
 	CreateIntermediateCA(ca Certificate) (Certificate, error)
 	CreateServerCert(ca Certificate) (Certificate, error)

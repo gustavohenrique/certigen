@@ -34,7 +34,7 @@ func (s *RsaKeyPair) PrivateKeyPEM() string {
 	return string(privPEM)
 }
 
-type Config struct {
+type CertificateTemplate struct {
 	serialNumber        big.Int
 	id                  string
 	expiration          time.Time
@@ -54,85 +54,85 @@ type Config struct {
 	issuerName          string
 }
 
-func NewConfig() *Config {
-	return &Config{}
+func NewTemplate() *CertificateTemplate {
+	return &CertificateTemplate{}
 }
 
-func (c *Config) SetID(n string) {
+func (c *CertificateTemplate) SetID(n string) {
 	c.id = n
 }
 
-func (c *Config) ID() string {
+func (c *CertificateTemplate) ID() string {
 	return c.id
 }
 
-func (c *Config) SetSerialNumber(n big.Int) {
+func (c *CertificateTemplate) SetSerialNumber(n big.Int) {
 	c.serialNumber = n
 }
 
-func (c *Config) SerialNumber() big.Int {
+func (c *CertificateTemplate) SerialNumber() big.Int {
 	if c.serialNumber.Cmp(big.NewInt(0)) == 0 {
 		return RandomSerialNumber()
 	}
 	return c.serialNumber
 }
 
-func (c *Config) SetCommonName(n string) {
+func (c *CertificateTemplate) SetCommonName(n string) {
 	c.commonName = n
 }
 
-func (c *Config) CommonName() string {
+func (c *CertificateTemplate) CommonName() string {
 	return c.commonName
 }
 
-func (c *Config) SetIssuerName(n string) {
+func (c *CertificateTemplate) SetIssuerName(n string) {
 	c.issuerName = n
 }
 
-func (c *Config) IssuerName() string {
+func (c *CertificateTemplate) IssuerName() string {
 	return c.issuerName
 }
 
-func (c *Config) EnableCA() {
+func (c *CertificateTemplate) EnableCA() {
 	c.isCa = true
 }
 
-func (c *Config) DisableCA() {
+func (c *CertificateTemplate) DisableCA() {
 	c.isCa = false
 }
 
-func (c *Config) IsCA() bool {
+func (c *CertificateTemplate) IsCA() bool {
 	return c.isCa
 }
 
-func (c *Config) EnableIntermediateCA() {
+func (c *CertificateTemplate) EnableIntermediateCA() {
 	c.isIntermediateCa = true
 }
 
-func (c *Config) DisableIntermediateCA() {
+func (c *CertificateTemplate) DisableIntermediateCA() {
 	c.isIntermediateCa = false
 }
 
-func (c *Config) IsIntermediateCA() bool {
+func (c *CertificateTemplate) IsIntermediateCA() bool {
 	return c.isIntermediateCa
 }
 
-func (c *Config) SetKeySize(i int) {
+func (c *CertificateTemplate) SetKeySize(i int) {
 	c.keySize = i
 }
 
-func (c *Config) KeySize() int {
+func (c *CertificateTemplate) KeySize() int {
 	if c.keySize != 2048 && c.keySize != 4096 {
 		return 4096
 	}
 	return c.keySize
 }
 
-func (c *Config) SetExpirationDate(d time.Time) {
+func (c *CertificateTemplate) SetExpirationDate(d time.Time) {
 	c.expiration = d
 }
 
-func (c *Config) ExpiresAt() time.Time {
+func (c *CertificateTemplate) ExpiresAt() time.Time {
 	now := time.Now()
 	if c.expiration.Before(now) {
 		return now.AddDate(0, 12, 0)
@@ -140,11 +140,11 @@ func (c *Config) ExpiresAt() time.Time {
 	return c.expiration
 }
 
-func (c *Config) SetOrganizations(organizations []string) {
+func (c *CertificateTemplate) SetOrganizations(organizations []string) {
 	c.organizations = organizations
 }
 
-func (c *Config) AddOrganization(organization string) {
+func (c *CertificateTemplate) AddOrganization(organization string) {
 	organization = strings.TrimSpace(organization)
 	if len(organization) == 0 {
 		organization = "Unknown Org"
@@ -152,28 +152,28 @@ func (c *Config) AddOrganization(organization string) {
 	c.organizations = append(c.organizations, organization)
 }
 
-func (c *Config) Organizations() []string {
+func (c *CertificateTemplate) Organizations() []string {
 	return c.organizations
 }
 
-func (c *Config) SetOrganizationalUnits(units []string) {
+func (c *CertificateTemplate) SetOrganizationalUnits(units []string) {
 	c.organizationalUnits = units
 }
 
-func (c *Config) AddOrganizationalUnit(ou string) {
+func (c *CertificateTemplate) AddOrganizationalUnit(ou string) {
 	ou = strings.TrimSpace(ou)
 	c.organizationalUnits = append(c.organizationalUnits, ou)
 }
 
-func (c *Config) OrganizationalUnits() []string {
+func (c *CertificateTemplate) OrganizationalUnits() []string {
 	return c.organizationalUnits
 }
 
-func (c *Config) SetCountries(countries []string) {
+func (c *CertificateTemplate) SetCountries(countries []string) {
 	c.countries = countries
 }
 
-func (c *Config) AddCountry(country string) {
+func (c *CertificateTemplate) AddCountry(country string) {
 	country = strings.ToUpper(strings.TrimSpace(country))
 	if len(country) != 2 {
 		country = "Brazil"
@@ -181,59 +181,59 @@ func (c *Config) AddCountry(country string) {
 	c.countries = append(c.countries, country)
 }
 
-func (c *Config) Countries() []string {
+func (c *CertificateTemplate) Countries() []string {
 	return c.countries
 }
 
-func (c *Config) SetLocalities(locals []string) {
+func (c *CertificateTemplate) SetLocalities(locals []string) {
 	c.localities = locals
 }
 
-func (c *Config) AddLocality(locality string) {
+func (c *CertificateTemplate) AddLocality(locality string) {
 	locality = strings.TrimSpace(locality)
 	c.localities = append(c.localities, locality)
 }
 
-func (c *Config) Localities() []string {
+func (c *CertificateTemplate) Localities() []string {
 	return c.localities
 }
 
-func (c *Config) SetHosts(hosts []string) {
+func (c *CertificateTemplate) SetHosts(hosts []string) {
 	c.hosts = hosts
 }
 
-func (c *Config) AddHost(host string) {
+func (c *CertificateTemplate) AddHost(host string) {
 	c.hosts = append(c.hosts, strings.TrimSpace(host))
 }
 
-func (c *Config) Hosts() []string {
+func (c *CertificateTemplate) Hosts() []string {
 	return c.hosts
 }
 
-func (c *Config) SetPermittedUriDomains(permittedUriDomains []string) {
+func (c *CertificateTemplate) SetPermittedUriDomains(permittedUriDomains []string) {
 	c.permittedUriDomains = permittedUriDomains
 }
 
-func (c *Config) AddPermittedUriDomain(uri string) {
+func (c *CertificateTemplate) AddPermittedUriDomain(uri string) {
 	c.permittedUriDomains = append(c.permittedUriDomains, strings.TrimSpace(uri))
 }
 
-func (c *Config) PermittedUriDomains() []string {
+func (c *CertificateTemplate) PermittedUriDomains() []string {
 	return c.permittedUriDomains
 }
 
-func (c *Config) SetOcspURL(url string) {
+func (c *CertificateTemplate) SetOcspURL(url string) {
 	c.ocspURL = strings.TrimSpace(url)
 }
 
-func (c *Config) OcspURL() string {
+func (c *CertificateTemplate) OcspURL() string {
 	return c.ocspURL
 }
 
-func (c *Config) EnableExtKeyServer() {
+func (c *CertificateTemplate) EnableExtKeyServer() {
 	c.hasExtKeyServer = true
 }
 
-func (c *Config) HasExtKeyServer() bool {
+func (c *CertificateTemplate) HasExtKeyServer() bool {
 	return c.hasExtKeyServer
 }

@@ -1,6 +1,6 @@
-package dto
+package http
 
-import "fmt"
+import "encoding/json"
 
 type HttpResponse struct {
 	Data interface{} `json:"data,omitempty"`
@@ -25,7 +25,11 @@ func (r HttpResponse) Error(err error, messages ...string) HttpResponse {
 
 func (r *HttpResponse) String() string {
 	if r.Data != nil {
-		return fmt.Sprintf("%s", r.Data)
+		b, err := json.Marshal(r.Data)
+		if err != nil {
+			return "Marshal error"
+		}
+		return string(b)
 	}
 	return "Response data is empty"
 }

@@ -14,14 +14,18 @@ type Certificate struct {
 	PrivateKey      *rsa.PrivateKey
 	PublicKey       *rsa.PublicKey
 	X509Certificate *x509.Certificate
+	ID              string
 	PublicKeyPEM    string
 	PrivateKeyPEM   string
-	ID              string
 	SerialNumber    big.Int
 	CreatedAt       *time.Time
 	RevokedAt       *time.Time
 	RevokedReason   int
-	Org             string
+	Organization    string
+	Teams           []string
+	Projects        []string
+	Hosts           []string
+	Environments    []string
 }
 
 func LoadCertificate(pubKey, privKey string) (Certificate, error) {

@@ -1,2 +1,5 @@
+LOG_LEVEL=info
+LOG_OUTPUT=stdout
+LOG_FORMAT=text
 SQLITE_SCHEMA=resources/data/sqlite/schema.sql
 SQLITE_ADDRESS=":memory:"

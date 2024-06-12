@@ -17,71 +17,71 @@ import (
 	"time"
 )
 
-var configNilErr = fmt.Errorf("config is nil")
+var certificateTemplateNilErr = fmt.Errorf("certificate template is nil")
 
 type certificateManager struct {
-	config *Config
+	certificateTemplate *CertificateTemplate
 }
 
 func New() Certiman {
 	return &certificateManager{}
 }
 
-func (s *certificateManager) With(config *Config) Certiman {
-	s.config = config
+func (s *certificateManager) With(template *CertificateTemplate) Certiman {
+	s.certificateTemplate = template
 	return s
 }
 
 func (s *certificateManager) CreateRootCA() (Certificate, error) {
 	var result Certificate
-	var config = s.config
-	if config == nil {
-		return result, configNilErr
+	var certificateTemplate = s.certificateTemplate
+	if certificateTemplate == nil {
+		return result, certificateTemplateNilErr
 	}
-	keyPair, err := s.generateRsaKeyPair(config)
+	keyPair, err := s.generateRsaKeyPair(certificateTemplate)
 	if err != nil {
 		return result, err
 	}
-	config.EnableCA()
-	config.EnableExtKeyServer()
-	cert := s.generateX509Template(config)
+	certificateTemplate.EnableCA()
+	certificateTemplate.EnableExtKeyServer()
+	cert := s.generateX509Template(certificateTemplate)
 	return s.buildPEM(cert, cert, keyPair.PrivateKey, keyPair)
 }
 
 func (s *certificateManager) CreateIntermediateCA(ca Certificate) (Certificate, error) {
-	var config = s.config
-	if config == nil {
-		return Certificate{}, configNilErr
+	var certificateTemplate = s.certificateTemplate
+	if certificateTemplate == nil {
+		return Certificate{}, certificateTemplateNilErr
 	}
-	config.DisableCA()
-	config.EnableIntermediateCA()
-	config.EnableExtKeyServer()
-	cert := s.generateX509Template(config)
+	certificateTemplate.DisableCA()
+	certificateTemplate.EnableIntermediateCA()
+	certificateTemplate.EnableExtKeyServer()
+	cert := s.generateX509Template(certificateTemplate)
 	signed, err := s.createSignedCertificate(cert, ca)
 	return signed, err
 
 }
 
 func (s *certificateManager) CreateServerCert(ca Certificate) (Certificate, error) {
-	var config = s.config
-	if config == nil {
-		return Certificate{}, configNilErr
+	var certificateTemplate = s.certificateTemplate
+	if certificateTemplate == nil {
+		return Certificate{}, certificateTemplateNilErr
 	}
-	config.EnableExtKeyServer()
-	config.DisableCA()
-	config.DisableIntermediateCA()
-	cert := s.generateX509Template(config)
+	certificateTemplate.EnableExtKeyServer()
+	certificateTemplate.DisableCA()
+	certificateTemplate.DisableIntermediateCA()
+	cert := s.generateX509Template(certificateTemplate)
 	return s.createSignedCertificate(cert, ca)
 }
 
 func (s *certificateManager) CreateClientCert(ca Certificate) (Certificate, error) {
-	var config = s.config
-	if config == nil {
-		return Certificate{}, configNilErr
+	var certificateTemplate = s.certificateTemplate
+	if certificateTemplate == nil {
+		return Certificate{}, certificateTemplateNilErr
 	}
-	config.DisableCA()
-	config.DisableIntermediateCA()
-	cert := s.generateX509Template(config)
+	certificateTemplate.DisableCA()
+	certificateTemplate.DisableIntermediateCA()
+	cert := s.generateX509Template(certificateTemplate)
 	return s.createSignedCertificate(cert, ca)
 }
 
@@ -94,8 +94,10 @@ func (s *certificateManager) Parse(certificate Certificate) (TlsCertificate, err
 	}
 
 	privBlock, _ := pem.Decode([]byte(certificate.PrivateKey))
-	// priv, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
 	priv, err := x509.ParsePKCS8PrivateKey(privBlock.Bytes)
+	if err != nil {
+		priv, err = x509.ParsePKCS1PrivateKey(privBlock.Bytes)
+	}
 	if err != nil {
 		return result, fmt.Errorf("cannot parse priv key: %s", err)
 	}
@@ -108,11 +110,11 @@ func (s *certificateManager) Parse(certificate Certificate) (TlsCertificate, err
 
 func (s *certificateManager) createSignedCertificate(cert *x509.Certificate, parentCert Certificate) (Certificate, error) {
 	var result Certificate
-	var config = s.config
-	if config == nil {
-		return result, configNilErr
+	var certificateTemplate = s.certificateTemplate
+	if certificateTemplate == nil {
+		return result, certificateTemplateNilErr
 	}
-	keyPair, err := s.generateRsaKeyPair(config)
+	keyPair, err := s.generateRsaKeyPair(certificateTemplate)
 	if err != nil {
 		return result, err
 	}
@@ -173,9 +175,9 @@ func (s *certificateManager) buildPEM(template, parent *x509.Certificate, priv *
 	return result, nil
 }
 
-func (s *certificateManager) generateRsaKeyPair(config *Config) (RsaKeyPair, error) {
+func (s *certificateManager) generateRsaKeyPair(certificateTemplate *CertificateTemplate) (RsaKeyPair, error) {
 	var result RsaKeyPair
-	priv, err := s.generateKey(config.KeySize())
+	priv, err := s.generateKey(certificateTemplate.KeySize())
 	if err != nil {
 		return result, err
 	}
@@ -185,29 +187,29 @@ func (s *certificateManager) generateRsaKeyPair(config *Config) (RsaKeyPair, err
 	return result, nil
 }
 
-func (s *certificateManager) generateX509Template(config *Config) *x509.Certificate {
-	serial := config.SerialNumber()
+func (s *certificateManager) generateX509Template(certificateTemplate *CertificateTemplate) *x509.Certificate {
+	serial := certificateTemplate.SerialNumber()
 	cert := &x509.Certificate{
 		SerialNumber: &serial,
 		Issuer: pkix.Name{
-			CommonName: config.IssuerName(),
+			CommonName: certificateTemplate.IssuerName(),
 		},
-		PermittedURIDomains: config.PermittedUriDomains(),
+		PermittedURIDomains: certificateTemplate.PermittedUriDomains(),
 		Subject: pkix.Name{
-			SerialNumber:       config.ID(),
-			CommonName:         config.CommonName(),
-			Organization:       config.Organizations(),
-			Country:            config.Countries(),
-			Locality:           config.Localities(),
-			OrganizationalUnit: config.OrganizationalUnits(),
+			SerialNumber:       certificateTemplate.ID(),
+			CommonName:         certificateTemplate.CommonName(),
+			Organization:       certificateTemplate.Organizations(),
+			Country:            certificateTemplate.Countries(),
+			Locality:           certificateTemplate.Localities(),
+			OrganizationalUnit: certificateTemplate.OrganizationalUnits(),
 		},
 		NotBefore:          time.Now(),
-		NotAfter:           config.ExpiresAt(),
+		NotAfter:           certificateTemplate.ExpiresAt(),
 		SignatureAlgorithm: x509.SHA256WithRSA,
 		PublicKeyAlgorithm: x509.RSA,
 		Version:            3,
 	}
-	for _, h := range config.Hosts() {
+	for _, h := range certificateTemplate.Hosts() {
 		if ip := net.ParseIP(h); ip != nil {
 			cert.IPAddresses = append(cert.IPAddresses, ip)
 		} else if email, err := mail.ParseAddress(h); err == nil && email.Address == h {
@@ -221,14 +223,14 @@ func (s *certificateManager) generateX509Template(config *Config) *x509.Certific
 
 	cert.BasicConstraintsValid = true
 
-	if config.IsCA() {
+	if certificateTemplate.IsCA() {
 		cert.IsCA = true
 		cert.MaxPathLen = 1
 		cert.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 		return cert
 	}
 
-	if config.IsIntermediateCA() {
+	if certificateTemplate.IsIntermediateCA() {
 		cert.IsCA = true
 		cert.MaxPathLen = 0
 		cert.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
@@ -237,13 +239,13 @@ func (s *certificateManager) generateX509Template(config *Config) *x509.Certific
 
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
 
-	ocspURL := config.OcspURL()
+	ocspURL := certificateTemplate.OcspURL()
 	if uriName, err := url.Parse(ocspURL); err == nil && uriName.Scheme != "" && uriName.Host != "" {
 		cert.OCSPServer = []string{ocspURL}
 	}
 
 	cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
-	if config.HasExtKeyServer() {
+	if certificateTemplate.HasExtKeyServer() {
 		cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
 	}
 	// if len(cert.IPAddresses) > 0 || len(cert.DNSNames) > 0 || len(cert.URIs) > 0 {
