@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -21,6 +22,7 @@ var certificateTemplateNilErr = fmt.Errorf("certificate template is nil")
 
 type certificateManager struct {
 	certificateTemplate *CertificateTemplate
+	ca                  Certificate
 }
 
 func New() Certiman {
@@ -29,6 +31,14 @@ func New() Certiman {
 
 func (s *certificateManager) With(template *CertificateTemplate) Certiman {
 	s.certificateTemplate = template
+	return s
+}
+
+func (s *certificateManager) WithKeyPair(pubKey, privKey string) Certiman {
+	s.ca = Certificate{
+		PublicKey:  pubKey,  // strings.ReplaceAll(pubKey, "\n", ""),
+		PrivateKey: privKey, //strings.ReplaceAll(privKey, "\n", ""),
+	}
 	return s
 }
 
@@ -48,7 +58,7 @@ func (s *certificateManager) CreateRootCA() (Certificate, error) {
 	return s.buildPEM(cert, cert, keyPair.PrivateKey, keyPair)
 }
 
-func (s *certificateManager) CreateIntermediateCA(ca Certificate) (Certificate, error) {
+func (s *certificateManager) CreateIntermediateCA() (Certificate, error) {
 	var certificateTemplate = s.certificateTemplate
 	if certificateTemplate == nil {
 		return Certificate{}, certificateTemplateNilErr
@@ -57,12 +67,12 @@ func (s *certificateManager) CreateIntermediateCA(ca Certificate) (Certificate, 
 	certificateTemplate.EnableIntermediateCA()
 	certificateTemplate.EnableExtKeyServer()
 	cert := s.generateX509Template(certificateTemplate)
-	signed, err := s.createSignedCertificate(cert, ca)
+	signed, err := s.createSignedCertificate(cert, s.ca)
 	return signed, err
 
 }
 
-func (s *certificateManager) CreateServerCert(ca Certificate) (Certificate, error) {
+func (s *certificateManager) CreateServerCert() (Certificate, error) {
 	var certificateTemplate = s.certificateTemplate
 	if certificateTemplate == nil {
 		return Certificate{}, certificateTemplateNilErr
@@ -71,10 +81,10 @@ func (s *certificateManager) CreateServerCert(ca Certificate) (Certificate, erro
 	certificateTemplate.DisableCA()
 	certificateTemplate.DisableIntermediateCA()
 	cert := s.generateX509Template(certificateTemplate)
-	return s.createSignedCertificate(cert, ca)
+	return s.createSignedCertificate(cert, s.ca)
 }
 
-func (s *certificateManager) CreateClientCert(ca Certificate) (Certificate, error) {
+func (s *certificateManager) CreateClientCert() (Certificate, error) {
 	var certificateTemplate = s.certificateTemplate
 	if certificateTemplate == nil {
 		return Certificate{}, certificateTemplateNilErr
@@ -82,18 +92,24 @@ func (s *certificateManager) CreateClientCert(ca Certificate) (Certificate, erro
 	certificateTemplate.DisableCA()
 	certificateTemplate.DisableIntermediateCA()
 	cert := s.generateX509Template(certificateTemplate)
-	return s.createSignedCertificate(cert, ca)
+	return s.createSignedCertificate(cert, s.ca)
 }
 
 func (s *certificateManager) Parse(certificate Certificate) (TlsCertificate, error) {
 	var result TlsCertificate
 	certBlock, _ := pem.Decode([]byte(certificate.PublicKey))
+	if certBlock == nil {
+		return result, errors.New("invalid public key pem " + certificate.PublicKey)
+	}
 	cert, err := x509.ParseCertificate(certBlock.Bytes)
 	if err != nil {
 		return result, fmt.Errorf("cannot parse pub key: %s", err)
 	}
 
 	privBlock, _ := pem.Decode([]byte(certificate.PrivateKey))
+	if privBlock == nil || privBlock.Type != "RSA PRIVATE KEY" {
+		return result, errors.New("invalid private key pem")
+	}
 	priv, err := x509.ParsePKCS8PrivateKey(privBlock.Bytes)
 	if err != nil {
 		priv, err = x509.ParsePKCS1PrivateKey(privBlock.Bytes)
@@ -172,6 +188,7 @@ func (s *certificateManager) buildPEM(template, parent *x509.Certificate, priv *
 
 	result.PrivateKey = string(privKeyPEM)
 	result.PublicKey = string(pubKeyPEM)
+	result.SerialNumber = template.SerialNumber.String()
 	return result, nil
 }
 

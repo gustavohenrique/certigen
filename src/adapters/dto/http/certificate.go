@@ -14,20 +14,24 @@ type CreateCaCertificateRequest struct {
 }
 
 type CreateIntermediateCertificateRequest struct {
-	certificateRequest
-	CaCert string `json:"ca_cert" valid:"required"`
-	CaKey  string `json:"ca_key" valid:"required"`
+	Name         string                `json:"name" valid:"required"`
+	Organization string                `json:"organization" valid:"required"`
+	Team         string                `json:"team"`
+	ExpiresAt    customdate.CustomDate `json:"expires_at" valid:"required"`
+	CaCert       string                `json:"cert" valid:"required"`
+	CaKey        string                `json:"key" valid:"required"`
 }
 
-type CreateServerCertificateRequest struct {
+type CreateCertificateRequest struct {
 	CreateIntermediateCertificateRequest
 	Environments []string `json:"environments"`
 	Hosts        []string `json:"hosts"`
-	Projects     []string `json:"projects" valid:"required"`
+	Services     []string `json:"allow_connections_to" valid:"required"`
 }
 
-type CreateClientCertificateRequest struct {
-	CreateServerCertificateRequest
+type CreateCaCertificateResponse struct {
+	PrivateKey string `json:"key"`
+	PublicKey  string `json:"cert"`
 }
 
 type CreateCertificateResponse struct {

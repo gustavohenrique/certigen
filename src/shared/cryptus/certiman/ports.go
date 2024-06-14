@@ -1,10 +1,11 @@
 package certiman
 
 type Certiman interface {
-	With(config *CertificateTemplate) Certiman
+	With(template *CertificateTemplate) Certiman
+	WithKeyPair(pubKey, privKey string) Certiman
 	CreateRootCA() (Certificate, error)
-	CreateIntermediateCA(ca Certificate) (Certificate, error)
-	CreateServerCert(ca Certificate) (Certificate, error)
-	CreateClientCert(ca Certificate) (Certificate, error)
+	CreateIntermediateCA() (Certificate, error)
+	CreateServerCert() (Certificate, error)
+	CreateClientCert() (Certificate, error)
 	Parse(certificate Certificate) (TlsCertificate, error)
 }

@@ -32,7 +32,7 @@ func TestCertificateController(tt *testing.T) {
 			assert.Nil(t, err, fmt.Sprintf("Expected nil but got %s", err))
 			assert.Equal(t, res.StatusCode, 201)
 
-			var data dto.CreateCertificateResponse
+			var data dto.CreateCaCertificateResponse
 			assert.Nil(t, stringfy.FromJSON(body.String(), &data))
 			assert.True(t, len(data.PrivateKey) > 1)
 			assert.True(t, len(data.PublicKey) > 1)

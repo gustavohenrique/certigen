@@ -10,8 +10,9 @@ import (
 )
 
 type Certificate struct {
-	PublicKey  string
-	PrivateKey string
+	SerialNumber string
+	PublicKey    string
+	PrivateKey   string
 }
 
 type RsaKeyPair struct {
@@ -41,7 +42,7 @@ type CertificateTemplate struct {
 	isCa                bool
 	isIntermediateCa    bool
 	hosts               []string
-	permittedUriDomains               []string
+	permittedUriDomains []string
 	ocspURL             string
 	organizations       []string
 	organizationalUnits []string

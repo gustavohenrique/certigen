@@ -39,7 +39,6 @@ func main() {
 	httpServer.ServeHtml("/web")
 	httpServer.ServeStaticFiles("/static")
 	router := httpServer.Router()
-	// v1 := router.Group("/api/v1")
 
 	ocspController := controllers.NewOcspController(repos)
 	ocspGroup := router.Group("/ocsp")
@@ -49,6 +48,9 @@ func main() {
 	certificateController := controllers.NewCertificateController(repos)
 	certificateGroup := router.Group("/certificate")
 	certificateGroup.POST("/ca", certificateController.CreateCA)
+	certificateGroup.POST("/intermediate", certificateController.CreateIntermediateCA)
+	certificateGroup.POST("/server", certificateController.CreateServerCert)
+	certificateGroup.POST("/client", certificateController.CreateClientCert)
 
 	go httpServer.Start()
 	quit := make(chan os.Signal, 1)
