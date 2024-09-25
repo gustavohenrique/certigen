@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
@@ -185,7 +186,7 @@ func (h *Responder) verifyIssuer(req *ocsp.Request) error {
 func parseCertFile(filename string) (*x509.Certificate, error) {
 	pubPEM, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot parse %s cert", err)
 	}
 	block, _ := pem.Decode(pubPEM)
 	return x509.ParseCertificate(block.Bytes)
@@ -195,7 +196,7 @@ func parseKeyFile(filename string) (interface{}, error) {
 	var err error
 	privPEM, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot parse %s key", err)
 	}
 	block, _ := pem.Decode(privPEM)
 	var key any

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"archive/zip"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"os"
@@ -67,6 +68,8 @@ func (h *CertificateController) CreateIntermediateCA(c echo.Context) error {
 		h.logger.Error("invalid request", err)
 		return c.JSON(http.StatusBadRequest, res.Error(err))
 	}
+	caCert := h.parsePEM(req.CaCert)
+	caKey := h.parsePEM(req.CaKey)
 	template := certiman.NewTemplate()
 	template.SetCommonName(req.Name)
 	template.AddOrganization(req.Organization)
@@ -74,7 +77,7 @@ func (h *CertificateController) CreateIntermediateCA(c echo.Context) error {
 	template.SetExpirationDate(req.ExpiresAt.Time)
 	ca, err := certiman.New().
 		With(template).
-		WithKeyPair(req.CaCert, req.CaKey).
+		WithKeyPair(caCert, caKey).
 		CreateIntermediateCA()
 	if err != nil {
 		h.logger.Error("creating intermediate:", err)
@@ -93,9 +96,11 @@ func (h *CertificateController) CreateServerCert(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, res.Error(err))
 	}
+	caCert := h.parsePEM(req.CaCert)
+	caKey := h.parsePEM(req.CaKey)
 	generated, err := certiman.New().
 		With(template).
-		WithKeyPair(req.CaCert, req.CaKey).
+		WithKeyPair(caCert, caKey).
 		CreateServerCert()
 	if err != nil {
 		h.logger.Error("creating server cert:", err)
@@ -114,9 +119,11 @@ func (h *CertificateController) CreateClientCert(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, res.Error(err))
 	}
+	caCert := h.parsePEM(req.CaCert)
+	caKey := h.parsePEM(req.CaKey)
 	generated, err := certiman.New().
 		With(template).
-		WithKeyPair(req.CaCert, req.CaKey).
+		WithKeyPair(caCert, caKey).
 		CreateClientCert()
 	if err != nil {
 		h.logger.Error("creating client cert:", err)
@@ -191,4 +198,12 @@ func (h *CertificateController) getPEMResponseOrZipFile(c echo.Context, cert cer
 		return c.Attachment(zipFile, filename)
 	}
 	return c.JSON(http.StatusCreated, res.Success(body))
+}
+
+func (h *CertificateController) parsePEM(req string) string {
+	decoded, err := base64.StdEncoding.DecodeString(req)
+	if err != nil {
+		return req
+	}
+	return string(decoded)
 }

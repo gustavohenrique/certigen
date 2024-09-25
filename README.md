@@ -1,10 +1,55 @@
-# Go Boilerplate
+# Certgen
 
-> Estrutura para projetos em Go
+> Gerencia self signed certificates
+
+## Uso
+
+```sh
+# CA
+curl -XPOST -H 'content-type:application/json' \
+    "http://localhost:8002/certificate/ca/?download=ca.zip" \
+    -o "ca.zip" \
+    -d '{"name": "ca", "organization": "home", "team": "devs", "expires_at": "2030-01-01"}'
+
+# Intermediate
+cakey=`base64 -w0 ca.key`
+cacert=`base64 -w0 ca.pem`
+cat > inter_req.json <<EOF
+{
+    "name": "inter", "organization": "home", "team": "devs", "expires_at": "2030-01-01",
+    "cert": "$cacert",
+    "key": "$cakey"
+}
+EOF
+
+curl -XPOST -H 'content-type:application/json' \
+    "http://localhost:8002/certificate/intermediate/?download=inter.zip" \
+    -o "inter.zip" \
+    -d @inter_req.json
+
+# Server
+cakey=`base64 -w0 inter.key`
+cacert=`base64 -w0 inter.pem`
+cat > server_req.json <<EOF
+{
+    "name": "server", "organization": "home", "team": "devs", "expires_at": "2030-01-01",
+    "cert": "$cacert",
+    "key": "$cakey",
+    "allow_connections_to": ["proxyit"]
+}
+EOF
+
+curl -XPOST -H 'content-type:application/json' \
+    "http://localhost:8002/certificate/server/?download=inter.zip" \
+    -o "server.zip" \
+    -d @server_req.json
+```
+
+## Desenvolvimento
 
 ![Architecture](assets/arch.png)
 
-## Arquitetura
+### Arquitetura
 
 Arquitetura de software é uma estrutura que suporta os casos de uso do projeto
 com o objetivo de facilitar a manutenção do código.
@@ -34,7 +79,7 @@ As decisões para alcançar as premissas foram:
 - Suporte a API Rest, gRPC, gRPC-Web e Websockets
 
 
-## Estrutura
+### Estrutura
 
 ```python
 .
@@ -67,11 +112,11 @@ As decisões para alcançar as premissas foram:
 └── .gitignore
 ```
 
-## Como funciona?
+### Como funciona?
 
-### Tecnologias
+#### Tecnologias
 
-#### Echo Framework
+##### Echo Framework
 
 Echo é uma framework para desenvolvimento web que facilita a criação de APIs
 Rest e renderização de templates HTML.  Suas principais características são:
@@ -84,7 +129,7 @@ Rest e renderização de templates HTML.  Suas principais características são:
 - Comunidade ativa
 - Diversas de aplicações em produção nos últimos anos
 
-## Setup
+### Setup
 
 ```sh
 docker compose up -d
@@ -101,7 +146,7 @@ Exemplo de como rodar tests por nome:
 task unittest -- TestPisRepository
 ```
 
-## Fluxo
+### Fluxo
 
 1. O entrypoint em `cmd` carrega as configurações e  inicia o servidor HTTP ou worker.
 2. O Controller HTTP ou Worker recebe um DTO de input e converte para Model.
@@ -109,3 +154,4 @@ task unittest -- TestPisRepository
    O Repository utiliza um Datasource, que encapsula a comunicação com o mundo externo (Postgres, Camunda ou Legacy Accessor).
 4. O Controler ou Worker converte o Model para o DTO de output.
 5. O Controller ou Worker atua como orquestrador de chamadas do Service ou Repository e por isso deve escrever os logs.
+
